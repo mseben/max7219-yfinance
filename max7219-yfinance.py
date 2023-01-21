@@ -1,48 +1,60 @@
-# Import the required modules
 import configparser
-import yahoo_fin.stock_info as yf
+import yfinance as yf
 import serial
+import random
+import threading
+from time import sleep
 
-# Open the ttyUSB serial connection
-ttyUSB = serial.Serial('/dev/ttyUSB0', 9600, timeout=0.5)
+def getStockPrices(stockName):
+    global price
+    stock = yf.Ticker(stockName)
+    price = stock.info['regularMarketPrice']
+#    price = random.randint(2,9)
+    print("[thread] price of ",stockName, " is ", price)
+    return price
 
-# Create a ConfigParser object
+def getStockPricesPeriodically(stockNames,getDataSec):
+    global prices
+    while True:
+        for stockName in stockNames:
+            price = getStockPrices(stockName)
+            prices[stockName] = price
+        print("[thread] sleep for ", getDataSec)
+        sleep(getDataSec)
+
+prices = {}
 config = configparser.ConfigParser()
-
-# Read the ini file
 config.read('stock.ini')
+stockNames = config['yfinance']['stock_name'].split(',')
+getDataSec = int(config['yfinance']['get_data_sec'])
 
-# Get the list of ticker symbols from the ini file
-tickers = config['DEFAULT']['stock_name'].split(',')
+print(type(stockNames))
+t1 = threading.Thread(target=getStockPricesPeriodically,args=(stockNames,getDataSec))
+t1.start()
 
-# Get the frequency value from the ini file
-n = int(config['DEFAULT']['frequency'])
+sleep(10)
 
-# Loop forever
+refreshDisplaySec = int(config['max7219']['refresh_display_sec'])
 while True:
-    # Loop through the list of ticker symbols
-    for ticker in tickers:
-        # Get the Ticker object for the stock with the ticker symbol
-        stock = yf.Ticker(ticker)
+    for stockName in stockNames:
+        print("price of ",stockName," = ", prices[stockName])
+        print("sleep for ", refreshDisplaySec)
+        sleep(refreshDisplaySec)
 
-        # Print the price every minute
-        print(stock.info['regularMarketPrice'])
+#ttyUSB = serial.Serial('/dev/ttyUSB0', 9600, timeout=0.5)
+#config = configparser.ConfigParser()
+#config.read('stock.ini')
+#tickers = config['DEFAULT']['stock_name'].split(',')
+#n = int(config['DEFAULT']['frequency'])
 
-        # Get the price of the stock every n minutes
-        if i % n == 0:
-            price = stock.info['regularMarketPrice']
-
-            # Format the price as a string with two decimal places
-            str_price = str(f'{price:.2f}')
-
-            # Print the price
-            print(str_price)
-
-            # Write the price to the ttyUSB device
-            ttyUSB.write(str_price.encode())
-
-        # Increment the counter
-        i += 1
-
-    # Wait for 1 minute
-    time.sleep(60)
+#while True:
+#    for ticker in tickers:
+#        stock = yf.Ticker(ticker)
+#        print(stock.info['regularMarketPrice'])
+#        if i % n == 0:
+#            price = stock.info['regularMarketPrice']
+#            str_price = str(f'{price:.2f}')
+#            print(str_price)
+#            ttyUSB.write(str_price.encode())
+#        i += 1
+#    time.sleep(60)
